@@ -22,6 +22,13 @@ export interface Category {
   sort_order: number;
 }
 
+export interface CoPurchaseStat {
+  product_id: string;
+  order_count: number;
+  match_rate: number; // Percentage of guests who ordered both together (0-100)
+  reason: string;
+}
+
 export interface Product {
   id: string;
   venue_id: string;
@@ -37,6 +44,12 @@ export interface Product {
   pairing_note?: string;
   badge?: string;
   calories?: string;
+  is_signature?: boolean;
+  portion?: string;
+  tasting_notes?: string[];
+  ingredients?: string[];
+  popularity_score?: number;
+  co_purchase_stats?: CoPurchaseStat[];
 }
 
 export type ServiceRequestType = "waiter" | "bill" | "water";
@@ -47,6 +60,15 @@ export interface ServiceRequest {
   table_number: number;
   type: ServiceRequestType;
   status: "pending" | "completed";
+  created_at: string;
+}
+
+export interface CustomerWish {
+  id: string;
+  venue_id: string;
+  table_number: number;
+  category: "yeni-urun" | "diyet" | "atmosfer" | "diger";
+  message: string;
   created_at: string;
 }
 

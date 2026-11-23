@@ -2,6 +2,7 @@
 
 import { INITIAL_DEMO_ORDER } from "./demo-data";
 import {
+  CustomerWish,
   DemoOrder,
   Feedback,
   GiftCard,
@@ -16,6 +17,7 @@ const STORAGE_KEY_ORDERS = "lumina_demo_orders_v1";
 const STORAGE_KEY_TIPS = "lumina_tips_v1";
 const STORAGE_KEY_GIFT_CARDS = "lumina_gift_cards_v1";
 const STORAGE_KEY_FEEDBACKS = "lumina_feedbacks_v1";
+const STORAGE_KEY_WISHES = "lumina_customer_wishes_v1";
 
 type Listener = () => void;
 
@@ -26,7 +28,8 @@ export type RealtimeEvent =
   | { eventType: "ORDER_UPDATED"; payload: { tableNumber: number } }
   | { eventType: "NEW_TIP"; payload: TipRecord }
   | { eventType: "GIFT_CARD_UPDATED"; payload: GiftCard }
-  | { eventType: "NEW_FEEDBACK"; payload: Feedback };
+  | { eventType: "NEW_FEEDBACK"; payload: Feedback }
+  | { eventType: "NEW_CUSTOMER_WISH"; payload: CustomerWish };
 
 function readJSON<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -372,4 +375,36 @@ export function subscribeRealtime(
     window.removeEventListener("storage", handleStorage);
     if (channel) channel.close();
   };
+}
+
+/* ==================== CUSTOMER WISHES (TALEP SEKMESİ) ==================== */
+
+export function getCustomerWishes(venueId: string): CustomerWish[] {
+  return readJSON<CustomerWish[]>(STORAGE_KEY_WISHES, [])
+    .filter((w) => w.venue_id === venueId)
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+}
+
+export function createCustomerWish(
+  venueId: string,
+  tableNumber: number,
+  category: CustomerWish["category"],
+  message: string
+): CustomerWish {
+  const wish: CustomerWish = {
+    id: `wish-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    venue_id: venueId,
+    table_number: tableNumber,
+    category,
+    message: message.trim(),
+    created_at: new Date().toISOString(),
+  };
+
+  const current = readJSON<CustomerWish[]>(STORAGE_KEY_WISHES, []);
+  writeJSON(STORAGE_KEY_WISHES, [wish, ...current]);
+  broadcastUpdate({ eventType: "NEW_CUSTOMER_WISH", payload: wish });
+  return wish;
 }

@@ -56,18 +56,20 @@ export default function TipView({
   };
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-md bg-[#0c0b0a] px-4 pb-12 pt-5">
+    <div className="mx-auto min-h-screen w-full max-w-md bg-[var(--bg-base)] px-4 pb-12 pt-5 transition-colors duration-300">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <Link
           href={`/${venue.slug}/${tableSlug}`}
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#171412] text-zinc-200 active:scale-95"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm active:scale-95"
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div className="text-center">
-          <h1 className="text-base font-semibold text-white">Dijital Bahşiş</h1>
-          <p className="text-[11px] text-[#d9a05b]">
+          <h1 className="font-serif-display text-lg font-semibold text-[var(--text-primary)]">
+            Dijital Bahşiş
+          </h1>
+          <p className="text-[11px] text-[var(--brand-accent)]">
             Masa {tableNumber} · {venue.name}
           </p>
         </div>
