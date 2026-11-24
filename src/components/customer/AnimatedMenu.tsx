@@ -8,8 +8,8 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
+  ChevronRight,
   Clock,
-  Flame,
   MessageSquarePlus,
   Plus,
   ShoppingBag,
@@ -24,11 +24,19 @@ import {
   getSignatureProducts,
 } from "@/lib/demo-data";
 import { getDataDrivenPairing } from "@/lib/pairing-engine";
-import { getDemoOrder, subscribeRealtime } from "@/lib/realtime-store";
-import { Product, Venue } from "@/lib/types";
+import {
+  addToSharedCart,
+  getDemoOrder,
+  getLiveOrder,
+  getSharedCart,
+  subscribeRealtime,
+} from "@/lib/realtime-store";
+import { LiveOrderStatus, Product, SharedCartItem, Venue } from "@/lib/types";
 import CustomerRequestTab from "./CustomerRequestTab";
 import FlavorWheelModal from "./FlavorWheelModal";
+import LiveOrderBanner from "./LiveOrderBanner";
 import RollingPrice from "./RollingPrice";
+import SharedCartSheet from "./SharedCartSheet";
 import TableActionsMenu from "./TableActionsMenu";
 import WaiterCallSheet from "./WaiterCallSheet";
 
@@ -46,31 +54,38 @@ export default function AnimatedMenu({
   tableNumber,
   tableSlug,
 }: AnimatedMenuProps) {
-  // Signature / Recommended products appear immediately when entering the menu
   const [activeTab, setActiveTab] = useState<string>(TAB_RECOMMENDED);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [selectionList, setSelectionList] = useState<
-    { product: Product; qty: number }[]
-  >([]);
+  const [quickOptionProductId, setQuickOptionProductId] = useState<
+    string | null
+  >(null);
+  const [detailOption, setDetailOption] = useState<string | undefined>(
+    undefined
+  );
+  const [sharedCart, setSharedCart] = useState<SharedCartItem[]>([]);
+  const [liveOrder, setLiveOrder] = useState<LiveOrderStatus | null>(null);
   const [addedToast, setAddedToast] = useState<string | null>(null);
   const [tableMenuOpen, setTableMenuOpen] = useState(false);
   const [waiterSheetOpen, setWaiterSheetOpen] = useState(false);
+  const [cartSheetOpen, setCartSheetOpen] = useState(false);
   const [wheelOpen, setWheelOpen] = useState(false);
   const [remainingBill, setRemainingBill] = useState<number>(1095);
 
-  const syncBill = useCallback(() => {
+  const syncAll = useCallback(() => {
     const order = getDemoOrder(venue.id, tableNumber);
     const total = Math.max(
       0,
       order.items.filter((i) => !i.is_paid).reduce((s, i) => s + i.price, 0)
     );
     setRemainingBill(total);
+    setSharedCart(getSharedCart(venue.id, tableNumber));
+    setLiveOrder(getLiveOrder(venue.id, tableNumber));
   }, [venue.id, tableNumber]);
 
   useEffect(() => {
-    syncBill();
-    return subscribeRealtime(syncBill);
-  }, [syncBill]);
+    syncAll();
+    return subscribeRealtime(syncAll);
+  }, [syncAll]);
 
   const signatureProducts = useMemo(() => getSignatureProducts(), []);
 
@@ -81,46 +96,56 @@ export default function AnimatedMenu({
   }, [activeTab, signatureProducts]);
 
   const cartProductIds = useMemo(
-    () => selectionList.map((i) => i.product.id),
-    [selectionList]
+    () => sharedCart.map((i) => i.product.id),
+    [sharedCart]
   );
 
-  // Data-driven Smart Pairing (never random)
   const smartPairing = useMemo(
     () => getDataDrivenPairing(selectedProduct, cartProductIds),
     [selectedProduct, cartProductIds]
   );
 
   const totalSelectedCount = useMemo(
-    () => selectionList.reduce((acc, item) => acc + item.qty, 0),
-    [selectionList]
+    () => sharedCart.reduce((acc, item) => acc + item.qty, 0),
+    [sharedCart]
   );
 
   const totalSelectedPrice = useMemo(
     () =>
-      selectionList.reduce(
-        (acc, item) => acc + item.product.price * item.qty,
-        0
-      ),
-    [selectionList]
+      sharedCart.reduce((acc, item) => acc + item.product.price * item.qty, 0),
+    [sharedCart]
   );
 
-  const addToSelection = (product: Product) => {
-    setSelectionList((prev) => {
-      const existing = prev.find((i) => i.product.id === product.id);
-      if (existing) {
-        return prev.map((i) =>
-          i.product.id === product.id ? { ...i, qty: i.qty + 1 } : i
-        );
-      }
-      return [...prev, { product, qty: 1 }];
-    });
-    setAddedToast(`${product.name} sepete eklendi`);
+  const handleAddToCart = (product: Product, option?: string) => {
+    addToSharedCart(venue.id, tableNumber, product, option, "Sen");
+    syncAll();
+    setQuickOptionProductId(null);
+    const label = option
+      ? `${product.name} (${option}) sepete eklendi`
+      : `${product.name} sepete eklendi`;
+    setAddedToast(label);
     window.setTimeout(() => {
-      setAddedToast((prev) =>
-        prev === `${product.name} sepete eklendi` ? null : prev
-      );
+      setAddedToast((prev) => (prev === label ? null : prev));
     }, 2000);
+  };
+
+  const handleQuickAddClick = (
+    e: React.MouseEvent,
+    product: Product
+  ) => {
+    e.stopPropagation();
+    if (product.options && product.options.choices.length > 0) {
+      setQuickOptionProductId((prev) =>
+        prev === product.id ? null : product.id
+      );
+    } else {
+      handleAddToCart(product);
+    }
+  };
+
+  const openProductDetail = (product: Product) => {
+    setSelectedProduct(product);
+    setDetailOption(product.options?.choices[0]);
   };
 
   const getMotionClass = (style: Product["motion_style"]) => {
@@ -139,7 +164,7 @@ export default function AnimatedMenu({
 
   return (
     <div className="relative mx-auto min-h-screen w-full max-w-md bg-[var(--bg-base)] pb-28 transition-colors duration-300">
-      {/* Sticky Top Header: Centered Logo + Right Masa 12 Action Pill */}
+      {/* Sticky Top Header: Centered Logo + Prominent Masa 12 Badge */}
       <div className="sticky top-0 z-30 border-b border-[var(--border-subtle)] bg-[var(--bg-glass)] backdrop-blur-xl">
         <div className="grid grid-cols-3 items-center px-4 py-3.5">
           <div className="flex items-center gap-2">
@@ -173,11 +198,16 @@ export default function AnimatedMenu({
             <button
               type="button"
               onClick={() => setTableMenuOpen(true)}
-              className="flex items-center gap-1.5 rounded-full border border-[var(--border-strong)] bg-[var(--bg-card)] px-3 py-1.5 text-xs font-semibold text-[var(--text-primary)] shadow-sm active:scale-95"
+              className="relative flex items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-3.5 py-2 text-xs font-semibold text-[var(--text-inverse)] shadow-md ring-2 ring-[var(--brand-accent)]/35 active:scale-95"
             >
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
               <span>Masa {tableNumber}</span>
-              <ChevronDown className="h-3.5 w-3.5 text-[var(--brand-accent)]" />
+              <ChevronDown className="h-3.5 w-3.5 opacity-80" />
+              {totalSelectedCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--brand-accent)] px-1 text-[10px] font-bold text-white shadow">
+                  {totalSelectedCount}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -217,6 +247,13 @@ export default function AnimatedMenu({
         </div>
       </div>
 
+      {/* Live Order Status Banner */}
+      {liveOrder && (
+        <div className="px-4 pt-4">
+          <LiveOrderBanner order={liveOrder} />
+        </div>
+      )}
+
       {/* Main Content Area */}
       {activeTab === TAB_WISHES ? (
         <div className="px-4 pt-5">
@@ -247,52 +284,54 @@ export default function AnimatedMenu({
 
           {/* 3D Product Cards */}
           <div className="space-y-4 px-4 pt-3">
-            {filteredProducts.map((product, index) => (
-              <motion.article
-                key={product.id}
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.32, delay: index * 0.05 }}
-                onClick={() => setSelectedProduct(product)}
-                className="group cursor-pointer overflow-hidden rounded-[26px] border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-[var(--shadow-card)] transition-colors hover:border-[var(--brand-accent)] active:scale-[0.985]"
-              >
-                {/* 3D Studio Visual Container */}
-                <div className="relative h-52 w-full overflow-hidden bg-[var(--bg-elevated)]">
-                  <img
-                    src={product.media_url}
-                    alt={product.name}
-                    loading="lazy"
-                    className={`${getMotionClass(
-                      product.motion_style
-                    )} h-full w-full object-cover`}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/15" />
+            {filteredProducts.map((product, index) => {
+              const isOptionOpen = quickOptionProductId === product.id;
 
-                  {/* Top Badges — Prep Time Preserved Top-Right */}
-                  <div className="absolute left-3 right-3 top-3 flex items-center justify-between">
-                    {product.badge ? (
-                      <span className="rounded-full border border-white/25 bg-[#2c1e16]/75 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-[#f7f3ec] backdrop-blur-md">
-                        {product.badge}
+              return (
+                <motion.article
+                  key={product.id}
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.32, delay: index * 0.05 }}
+                  onClick={() => openProductDetail(product)}
+                  className="group cursor-pointer overflow-hidden rounded-[26px] border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-[var(--shadow-card)] transition-colors hover:border-[var(--brand-accent)]"
+                >
+                  {/* 3D Studio Visual Container */}
+                  <div className="relative h-52 w-full overflow-hidden bg-[var(--bg-elevated)]">
+                    <img
+                      src={product.media_url}
+                      alt={product.name}
+                      loading="lazy"
+                      className={`${getMotionClass(
+                        product.motion_style
+                      )} h-full w-full object-cover`}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/15" />
+
+                    {/* Top Badges — Prep Time Preserved Top-Right */}
+                    <div className="absolute left-3 right-3 top-3 flex items-center justify-between">
+                      {product.badge ? (
+                        <span className="rounded-full border border-white/25 bg-[#2c1e16]/75 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-[#f7f3ec] backdrop-blur-md">
+                          {product.badge}
+                        </span>
+                      ) : (
+                        <span />
+                      )}
+
+                      <span className="inline-flex items-center gap-1 rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur-md">
+                        <Clock className="h-3 w-3 text-[#e5d4b8]" />
+                        {product.prep_time}
                       </span>
-                    ) : (
-                      <span />
-                    )}
+                    </div>
 
-                    <span className="inline-flex items-center gap-1 rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur-md">
-                      <Clock className="h-3 w-3 text-[#e5d4b8]" />
-                      {product.prep_time}
-                    </span>
+                    {/* Price Tag — Preserved Bottom-Right */}
+                    <div className="absolute bottom-3 right-3 rounded-2xl border border-white/15 bg-[#2c1e16]/90 px-3.5 py-1.5 text-sm font-semibold text-[#f7f3ec] shadow-md backdrop-blur-md">
+                      {product.price} ₺
+                    </div>
                   </div>
 
-                  {/* Price Tag — Preserved Bottom-Right */}
-                  <div className="absolute bottom-3 right-3 rounded-2xl border border-white/15 bg-[#2c1e16]/90 px-3.5 py-1.5 text-sm font-semibold text-[#f7f3ec] shadow-md backdrop-blur-md">
-                    {product.price} ₺
-                  </div>
-                </div>
-
-                {/* Detailed Card Body */}
-                <div className="p-4">
-                  <div className="flex items-start justify-between gap-2">
+                  {/* Detailed Card Body */}
+                  <div className="p-4">
                     <div>
                       <h3 className="font-serif-display text-lg font-semibold text-[var(--text-primary)]">
                         {product.name}
@@ -303,72 +342,91 @@ export default function AnimatedMenu({
                         </p>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        addToSelection(product);
-                      }}
-                      aria-label={`${product.name} ekle`}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand-primary)] text-[var(--text-inverse)] shadow-sm transition-transform active:scale-90"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
 
-                  <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-[var(--text-secondary)]">
-                    {product.description}
-                  </p>
+                    <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+                      {product.description}
+                    </p>
 
-                  {/* Tasting Notes */}
-                  {product.tasting_notes && product.tasting_notes.length > 0 && (
-                    <div className="mt-2.5 flex flex-wrap gap-1.5">
-                      {product.tasting_notes.map((note) => (
-                        <span
-                          key={note}
-                          className="rounded-full bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]"
-                        >
-                          {note}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Allergens & Smart Pairing Indicator */}
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border-subtle)] pt-2.5">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {product.allergens.length > 0 ? (
-                        product.allergens.map((a) => (
+                    {/* Tasting Notes */}
+                    {product.tasting_notes && product.tasting_notes.length > 0 && (
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                        {product.tasting_notes.map((note) => (
                           <span
-                            key={a}
-                            className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-card-soft)] px-2 py-0.5 text-[10px] text-[var(--text-muted)]"
+                            key={note}
+                            className="rounded-full bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]"
                           >
-                            {ALLERGEN_LABELS[a].short}
+                            {note}
                           </span>
-                        ))
-                      ) : (
-                        <span className="rounded-md border border-emerald-600/20 bg-emerald-600/10 px-2 py-0.5 text-[10px] text-emerald-700">
-                          Alerjen İçermez
-                        </span>
-                      )}
-                    </div>
+                        ))}
+                      </div>
+                    )}
 
-                    {product.co_purchase_stats &&
-                      product.co_purchase_stats.length > 0 && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--brand-accent)]">
-                          <TrendingUp className="h-3 w-3" />%
-                          {product.co_purchase_stats[0].match_rate} Eşleşme
-                        </span>
+                    {/* Inline Quick Option Selector (No page switch needed!) */}
+                    <AnimatePresence>
+                      {isOptionOpen && product.options && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-3 overflow-hidden rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-3"
+                        >
+                          <p className="mb-2 text-[11px] font-semibold text-[var(--text-primary)]">
+                            {product.options.label} seçin:
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {product.options.choices.map((choice) => (
+                              <button
+                                key={choice}
+                                type="button"
+                                onClick={() => handleAddToCart(product, choice)}
+                                className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-1.5 text-[11px] font-medium text-[var(--text-primary)] hover:border-[var(--brand-accent)] active:scale-95"
+                              >
+                                {choice}
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
                       )}
+                    </AnimatePresence>
+
+                    {/* Bottom Row: Allergens + Prominent Bottom-Right "+ Ekle" Button */}
+                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--border-subtle)] pt-3">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {product.allergens.length > 0 ? (
+                          product.allergens.map((a) => (
+                            <span
+                              key={a}
+                              className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-card-soft)] px-2 py-0.5 text-[10px] text-[var(--text-muted)]"
+                            >
+                              {ALLERGEN_LABELS[a].short}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="rounded-md border border-emerald-600/20 bg-emerald-600/10 px-2 py-0.5 text-[10px] text-emerald-700">
+                            Alerjen İçermez
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => handleQuickAddClick(e, product)}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--brand-primary)] px-3.5 py-2 text-xs font-semibold text-[var(--text-inverse)] shadow-sm transition-transform active:scale-95"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>Ekle</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </motion.article>
-            ))}
+                </motion.article>
+              );
+            })}
           </div>
         </>
       )}
 
-      {/* Floating Cart Summary Bar with 1-Second Downward Rolling Price Animation */}
+      {/* Clickable Floating Shared Cart Summary Bar (Opens SharedCartSheet — NO Clear All button!) */}
       <AnimatePresence>
         {totalSelectedCount > 0 && (
           <motion.div
@@ -377,33 +435,34 @@ export default function AnimatedMenu({
             exit={{ y: 90, opacity: 0 }}
             className="fixed bottom-4 left-1/2 z-30 w-[92%] max-w-md -translate-x-1/2"
           >
-            <div className="flex items-center justify-between rounded-[22px] border border-[var(--border-strong)] bg-[var(--brand-primary)] px-4 py-3 text-[var(--text-inverse)] shadow-[var(--shadow-float)]">
+            <button
+              type="button"
+              onClick={() => setCartSheetOpen(true)}
+              className="flex w-full items-center justify-between rounded-[22px] border border-[var(--border-strong)] bg-[var(--brand-primary)] px-4 py-3 text-left text-[var(--text-inverse)] shadow-[var(--shadow-float)] transition-transform active:scale-[0.985]"
+            >
               <div className="flex items-center gap-3">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15">
                   <ShoppingBag className="h-4 w-4" />
                 </span>
                 <div>
-                  <p className="text-[11px] opacity-80">
-                    Sepetiniz ({totalSelectedCount} ürün)
+                  <p className="text-[11px] opacity-85">
+                    Ortak Masa Sepeti ({totalSelectedCount} ürün)
                   </p>
                   <div className="text-base font-bold">
                     <RollingPrice value={totalSelectedPrice} />
                   </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectionList([])}
-                className="rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium active:scale-95"
-              >
-                Temizle
-              </button>
-            </div>
+              <span className="inline-flex items-center gap-1 rounded-xl bg-white/15 px-3 py-1.5 text-xs font-semibold">
+                Sepeti Gör
+                <ChevronRight className="h-3.5 w-3.5" />
+              </span>
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Product Detail Bottom Sheet + Data-Driven Smart Pairing */}
+      {/* Product Detail Bottom Sheet (Calories Removed!) */}
       <AnimatePresence>
         {selectedProduct && (
           <>
@@ -460,23 +519,45 @@ export default function AnimatedMenu({
                   </span>
                 </div>
 
-                {/* Meta Chips */}
+                {/* Prep Time Chip Only (No Calories) */}
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--text-secondary)]">
                   <span className="inline-flex items-center gap-1 rounded-full bg-[var(--bg-elevated)] px-2.5 py-1">
                     <Clock className="h-3.5 w-3.5 text-[var(--brand-accent)]" />
-                    {selectedProduct.prep_time}
+                    Hazırlanma: {selectedProduct.prep_time}
                   </span>
-                  {selectedProduct.calories && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[var(--bg-elevated)] px-2.5 py-1">
-                      <Flame className="h-3.5 w-3.5 text-[var(--brand-accent)]" />
-                      {selectedProduct.calories}
-                    </span>
-                  )}
                 </div>
 
                 <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">
                   {selectedProduct.description}
                 </p>
+
+                {/* Options Selector inside Detail Sheet */}
+                {selectedProduct.options && (
+                  <div className="mt-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--text-muted)]">
+                      {selectedProduct.options.label}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedProduct.options.choices.map((choice) => {
+                        const active = detailOption === choice;
+                        return (
+                          <button
+                            key={choice}
+                            type="button"
+                            onClick={() => setDetailOption(choice)}
+                            className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition-all ${
+                              active
+                                ? "bg-[var(--brand-primary)] text-[var(--text-inverse)]"
+                                : "border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]"
+                            }`}
+                          >
+                            {choice}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Ingredients */}
                 {selectedProduct.ingredients &&
@@ -519,7 +600,9 @@ export default function AnimatedMenu({
                 {/* Primary Add Button */}
                 <button
                   type="button"
-                  onClick={() => addToSelection(selectedProduct)}
+                  onClick={() =>
+                    handleAddToCart(selectedProduct, detailOption)
+                  }
                   className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--brand-primary)] py-3.5 text-sm font-semibold text-[var(--text-inverse)] shadow-lg active:scale-[0.98]"
                 >
                   <Plus className="h-4 w-4" />
@@ -559,16 +642,14 @@ export default function AnimatedMenu({
                       <div className="flex shrink-0 gap-1.5">
                         <button
                           type="button"
-                          onClick={() =>
-                            setSelectedProduct(smartPairing.product)
-                          }
+                          onClick={() => openProductDetail(smartPairing.product)}
                           className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2.5 py-2 text-[11px] font-medium text-[var(--text-primary)] active:scale-95"
                         >
                           İncele
                         </button>
                         <button
                           type="button"
-                          onClick={() => addToSelection(smartPairing.product)}
+                          onClick={() => handleAddToCart(smartPairing.product)}
                           className="flex items-center gap-1 rounded-xl bg-[var(--brand-primary)] px-2.5 py-2 text-[11px] font-semibold text-[var(--text-inverse)] active:scale-95"
                         >
                           <Plus className="h-3 w-3" />
@@ -590,9 +671,21 @@ export default function AnimatedMenu({
         tableNumber={tableNumber}
         tableSlug={tableSlug}
         remainingBill={remainingBill}
+        cartCount={totalSelectedCount}
         open={tableMenuOpen}
         onClose={() => setTableMenuOpen(false)}
         onOpenWaiter={() => setWaiterSheetOpen(true)}
+        onOpenCart={() => setCartSheetOpen(true)}
+      />
+
+      {/* Ortak Masa Sepeti Çekmecesi */}
+      <SharedCartSheet
+        venueId={venue.id}
+        tableNumber={tableNumber}
+        items={sharedCart}
+        open={cartSheetOpen}
+        onClose={() => setCartSheetOpen(false)}
+        onOrderSubmitted={syncAll}
       />
 
       <WaiterCallSheet

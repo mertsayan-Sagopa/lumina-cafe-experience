@@ -137,6 +137,9 @@ export default function FlavorWheelModal({
                 <h3 className="font-serif-display mt-0.5 text-xl font-semibold text-[var(--text-primary)]">
                   Lezzet Çarkını Çevir
                 </h3>
+                <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
+                  Masa başına 1 çevirme hakkı · Şansın yaver giderse ikram bizden!
+                </p>
               </div>
               <button
                 type="button"

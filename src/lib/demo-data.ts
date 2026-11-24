@@ -77,6 +77,10 @@ export const DEMO_PRODUCTS: Product[] = [
     tasting_notes: ["Madagascar Vanilya", "Karamel", "İpeksi Mikro Köpük"],
     ingredients: ["Etiyopya Yirgacheffe Espresso", "Günlük Çiftlik Sütü", "Ev Yapımı Vanilya Özütü"],
     popularity_score: 98,
+    options: {
+      label: "Süt Seçimi",
+      choices: ["Normal Süt", "Yulaf Sütü", "Badem Sütü", "Laktozsuz"],
+    },
     co_purchase_stats: [
       {
         product_id: "prod-sansebastian",
@@ -282,6 +286,10 @@ export const DEMO_PRODUCTS: Product[] = [
     tasting_notes: ["Siyah Trüf Aioli", "Dry-Aged Dana", "Tereyağlı Brioche"],
     ingredients: ["Çift 90g Dry-Aged Dana", "İngiliz Cheddar", "Karamelize Soğan", "Brioche Ekmek"],
     popularity_score: 99,
+    options: {
+      label: "Pişirme Derecesi",
+      choices: ["Orta", "Orta-İyi", "İyi Pişmiş"],
+    },
     co_purchase_stats: [
       {
         product_id: "prod-lemonade",
@@ -381,6 +389,10 @@ export const DEMO_PRODUCTS: Product[] = [
     tasting_notes: ["Uji Ceremonial Matcha", "Kremamsı Yulaf", "Akçaağaç"],
     ingredients: ["Japonya Uji Matcha", "Barista Yulaf Sütü", "Organik Akçaağaç Şurubu"],
     popularity_score: 94,
+    options: {
+      label: "Süt Seçimi",
+      choices: ["Yulaf Sütü", "Badem Sütü", "Normal Süt"],
+    },
     co_purchase_stats: [
       {
         product_id: "prod-avocado",

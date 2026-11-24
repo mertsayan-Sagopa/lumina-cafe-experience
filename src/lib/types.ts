@@ -29,6 +29,11 @@ export interface CoPurchaseStat {
   reason: string;
 }
 
+export interface ProductOption {
+  label: string;
+  choices: string[];
+}
+
 export interface Product {
   id: string;
   venue_id: string;
@@ -50,6 +55,28 @@ export interface Product {
   ingredients?: string[];
   popularity_score?: number;
   co_purchase_stats?: CoPurchaseStat[];
+  options?: ProductOption;
+}
+
+export interface SharedCartItem {
+  id: string;
+  product: Product;
+  qty: number;
+  selectedOption?: string;
+  addedBy: string;
+}
+
+export type LiveOrderStage = "received" | "preparing" | "serving";
+
+export interface LiveOrderStatus {
+  id: string;
+  venue_id: string;
+  table_number: number;
+  status: LiveOrderStage;
+  estimated_minutes: number;
+  items: SharedCartItem[];
+  total_amount: number;
+  created_at: string;
 }
 
 export type ServiceRequestType = "waiter" | "bill" | "water";

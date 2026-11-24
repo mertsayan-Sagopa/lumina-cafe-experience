@@ -16,10 +16,17 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 import { getSignatureProducts } from "@/lib/demo-data";
-import { getDemoOrder, subscribeRealtime } from "@/lib/realtime-store";
-import { Venue } from "@/lib/types";
+import {
+  getDemoOrder,
+  getLiveOrder,
+  getSharedCart,
+  subscribeRealtime,
+} from "@/lib/realtime-store";
+import { LiveOrderStatus, SharedCartItem, Venue } from "@/lib/types";
 import FlavorWheelModal from "./FlavorWheelModal";
+import LiveOrderBanner from "./LiveOrderBanner";
 import RatingShieldModal from "./RatingShieldModal";
+import SharedCartSheet from "./SharedCartSheet";
 import SocialSheet from "./SocialSheet";
 import TableActionsMenu from "./TableActionsMenu";
 import WaiterCallSheet from "./WaiterCallSheet";
@@ -37,37 +44,43 @@ export default function BentoHome({
 }: BentoHomeProps) {
   const [tableMenuOpen, setTableMenuOpen] = useState(false);
   const [waiterSheetOpen, setWaiterSheetOpen] = useState(false);
+  const [cartSheetOpen, setCartSheetOpen] = useState(false);
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [socialSheetOpen, setSocialSheetOpen] = useState(false);
   const [wheelOpen, setWheelOpen] = useState(false);
   const [remainingBill, setRemainingBill] = useState<number>(1095);
+  const [sharedCart, setSharedCart] = useState<SharedCartItem[]>([]);
+  const [liveOrder, setLiveOrder] = useState<LiveOrderStatus | null>(null);
 
   const signatureProducts = getSignatureProducts();
 
-  const syncBill = useCallback(() => {
+  const syncAll = useCallback(() => {
     const order = getDemoOrder(venue.id, tableNumber);
     const total = Math.max(
       0,
       order.items.filter((i) => !i.is_paid).reduce((s, i) => s + i.price, 0)
     );
     setRemainingBill(total);
+    setSharedCart(getSharedCart(venue.id, tableNumber));
+    setLiveOrder(getLiveOrder(venue.id, tableNumber));
   }, [venue.id, tableNumber]);
 
   useEffect(() => {
-    syncBill();
-    return subscribeRealtime(syncBill);
-  }, [syncBill]);
+    syncAll();
+    return subscribeRealtime(syncAll);
+  }, [syncAll]);
 
+  const cartCount = sharedCart.reduce((acc, item) => acc + item.qty, 0);
   const basePath = `/${venue.slug}/${tableSlug}`;
 
   return (
     <div className="relative mx-auto min-h-screen w-full max-w-md bg-[var(--bg-base)] px-4 pb-12 pt-5 transition-colors duration-300">
-      {/* Header: Centered Venue Logo + Right Masa Badge */}
+      {/* Header: Centered Venue Logo + Prominent Right Masa Badge */}
       <motion.header
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="relative z-20 mb-6 grid grid-cols-3 items-center"
+        className="relative z-20 mb-5 grid grid-cols-3 items-center"
       >
         {/* Left: Flavor Wheel Quick Trigger */}
         <div className="flex justify-start">
@@ -94,19 +107,27 @@ export default function BentoHome({
           </p>
         </div>
 
-        {/* Right: Clickable Masa 12 Pill -> Opens Waiter / Bill / Tip Menu */}
+        {/* Right: Prominent Clickable Masa 12 Pill */}
         <div className="flex justify-end">
           <button
             type="button"
             onClick={() => setTableMenuOpen(true)}
-            className="flex items-center gap-1.5 rounded-full border border-[var(--border-strong)] bg-[var(--bg-card)] px-3 py-1.5 text-xs font-semibold text-[var(--text-primary)] shadow-sm transition-transform active:scale-95"
+            className="relative flex items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-3.5 py-2 text-xs font-semibold text-[var(--text-inverse)] shadow-md ring-2 ring-[var(--brand-accent)]/35 transition-transform active:scale-95"
           >
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
             <span>Masa {tableNumber}</span>
-            <ChevronDown className="h-3.5 w-3.5 text-[var(--brand-accent)]" />
+            <ChevronDown className="h-3.5 w-3.5 opacity-80" />
+            {cartCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--brand-accent)] px-1 text-[10px] font-bold text-white shadow">
+                {cartCount}
+              </span>
+            )}
           </button>
         </div>
       </motion.header>
+
+      {/* Live Order Status Banner (if an order was sent to kitchen) */}
+      <LiveOrderBanner order={liveOrder} />
 
       {/* Main Hero: Menu Focused */}
       <motion.div
@@ -139,7 +160,7 @@ export default function BentoHome({
             <div>
               <div className="mb-1 flex items-center gap-2 text-xs text-[#e8dfd3]">
                 <UtensilsCrossed className="h-3.5 w-3.5 text-[#d6c3a5]" />
-                <span>İmza Lezzetler · Veri Odaklı Eşleştirmeler</span>
+                <span>İmza Lezzetler · Ortak Masa Sepeti</span>
               </div>
               <h2 className="font-serif-display text-2xl font-semibold tracking-tight text-white">
                 Menüyü Keşfet
@@ -181,7 +202,6 @@ export default function BentoHome({
                   alt={product.name}
                   className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
-                {/* Preserved Prep Time & Price Positions */}
                 <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-md">
                   <Clock className="h-2.5 w-2.5 text-[#e5d4b8]" />
                   {product.prep_time}
@@ -203,7 +223,7 @@ export default function BentoHome({
         </div>
       </section>
 
-      {/* Gamification Banner: Lezzet Çarkı */}
+      {/* Playful Gamification Banner: Lezzet Çarkı */}
       <motion.button
         type="button"
         whileTap={{ scale: 0.98 }}
@@ -219,14 +239,14 @@ export default function BentoHome({
               Lezzet Çarkını Çevir
             </p>
             <p className="text-[11px] text-[var(--text-secondary)]">
-              Masana özel sürpriz ikram veya indirim kazan
+              Masa başına 1 çevirme hakkı · Şansın yaver giderse ikram bizden!
             </p>
           </div>
         </div>
         <ArrowUpRight className="h-4 w-4 text-[var(--brand-accent)]" />
       </motion.button>
 
-      {/* Subtle Secondary Row */}
+      {/* Playful Secondary Row */}
       <div className="mt-3 grid grid-cols-2 gap-3">
         <Link
           href={`${basePath}/hediye-ceki`}
@@ -240,7 +260,7 @@ export default function BentoHome({
               Hediye Çeki
             </p>
             <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
-              Kahve ısmarla
+              Yan masaya sürpriz yap veya arkadaşına kahve ısmarla
             </p>
           </div>
         </Link>
@@ -292,7 +312,7 @@ export default function BentoHome({
       </button>
 
       <p className="mt-6 text-center text-[11px] text-[var(--text-muted)]">
-        Garson &amp; Hesap işlemleri için sağ üstteki Masa {tableNumber} alanına dokunun
+        Garson, Hesap ve Sepet için sağ üstteki Masa {tableNumber} rozetine dokunun
       </p>
 
       {/* Masa 12 Aksiyon Menüsü */}
@@ -301,9 +321,20 @@ export default function BentoHome({
         tableNumber={tableNumber}
         tableSlug={tableSlug}
         remainingBill={remainingBill}
+        cartCount={cartCount}
         open={tableMenuOpen}
         onClose={() => setTableMenuOpen(false)}
         onOpenWaiter={() => setWaiterSheetOpen(true)}
+        onOpenCart={() => setCartSheetOpen(true)}
+      />
+
+      <SharedCartSheet
+        venueId={venue.id}
+        tableNumber={tableNumber}
+        items={sharedCart}
+        open={cartSheetOpen}
+        onClose={() => setCartSheetOpen(false)}
+        onOrderSubmitted={syncAll}
       />
 
       <WaiterCallSheet

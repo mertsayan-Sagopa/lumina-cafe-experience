@@ -6,8 +6,12 @@ import {
   DemoOrder,
   Feedback,
   GiftCard,
+  LiveOrderStage,
+  LiveOrderStatus,
+  Product,
   ServiceRequest,
   ServiceRequestType,
+  SharedCartItem,
   TipRecord,
 } from "./types";
 
@@ -18,6 +22,8 @@ const STORAGE_KEY_TIPS = "lumina_tips_v1";
 const STORAGE_KEY_GIFT_CARDS = "lumina_gift_cards_v1";
 const STORAGE_KEY_FEEDBACKS = "lumina_feedbacks_v1";
 const STORAGE_KEY_WISHES = "lumina_customer_wishes_v1";
+const STORAGE_KEY_SHARED_CART = "lumina_shared_cart_v1";
+const STORAGE_KEY_LIVE_ORDER = "lumina_live_order_v1";
 
 type Listener = () => void;
 
@@ -29,7 +35,9 @@ export type RealtimeEvent =
   | { eventType: "NEW_TIP"; payload: TipRecord }
   | { eventType: "GIFT_CARD_UPDATED"; payload: GiftCard }
   | { eventType: "NEW_FEEDBACK"; payload: Feedback }
-  | { eventType: "NEW_CUSTOMER_WISH"; payload: CustomerWish };
+  | { eventType: "NEW_CUSTOMER_WISH"; payload: CustomerWish }
+  | { eventType: "SHARED_CART_UPDATED"; payload: { tableNumber: number } }
+  | { eventType: "LIVE_ORDER_UPDATED"; payload: { tableNumber: number } };
 
 function readJSON<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -407,4 +415,199 @@ export function createCustomerWish(
   writeJSON(STORAGE_KEY_WISHES, [wish, ...current]);
   broadcastUpdate({ eventType: "NEW_CUSTOMER_WISH", payload: wish });
   return wish;
+}
+
+/* ==================== SHARED TABLE CART (ORTAK MASA SEPETİ) ==================== */
+
+export function getSharedCart(
+  venueId: string,
+  tableNumber: number
+): SharedCartItem[] {
+  const all = readJSON<Record<string, SharedCartItem[]>>(
+    STORAGE_KEY_SHARED_CART,
+    {}
+  );
+  return all[`${venueId}_${tableNumber}`] ?? [];
+}
+
+export function addToSharedCart(
+  venueId: string,
+  tableNumber: number,
+  product: Product,
+  selectedOption?: string,
+  addedBy: string = "Sen"
+): SharedCartItem[] {
+  const all = readJSON<Record<string, SharedCartItem[]>>(
+    STORAGE_KEY_SHARED_CART,
+    {}
+  );
+  const key = `${venueId}_${tableNumber}`;
+  const current = all[key] ?? [];
+
+  const existing = current.find(
+    (item) =>
+      item.product.id === product.id &&
+      (item.selectedOption ?? "") === (selectedOption ?? "") &&
+      item.addedBy === addedBy
+  );
+
+  const updated = existing
+    ? current.map((item) =>
+        item.id === existing.id ? { ...item, qty: item.qty + 1 } : item
+      )
+    : [
+        ...current,
+        {
+          id: `cart-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          product,
+          qty: 1,
+          selectedOption,
+          addedBy,
+        },
+      ];
+
+  all[key] = updated;
+  writeJSON(STORAGE_KEY_SHARED_CART, all);
+  broadcastUpdate({ eventType: "SHARED_CART_UPDATED", payload: { tableNumber } });
+  return updated;
+}
+
+export function updateSharedCartItemQty(
+  venueId: string,
+  tableNumber: number,
+  itemId: string,
+  delta: number
+): SharedCartItem[] {
+  const all = readJSON<Record<string, SharedCartItem[]>>(
+    STORAGE_KEY_SHARED_CART,
+    {}
+  );
+  const key = `${venueId}_${tableNumber}`;
+  const current = all[key] ?? [];
+
+  const updated = current
+    .map((item) =>
+      item.id === itemId ? { ...item, qty: item.qty + delta } : item
+    )
+    .filter((item) => item.qty > 0);
+
+  all[key] = updated;
+  writeJSON(STORAGE_KEY_SHARED_CART, all);
+  broadcastUpdate({ eventType: "SHARED_CART_UPDATED", payload: { tableNumber } });
+  return updated;
+}
+
+export function removeSharedCartItem(
+  venueId: string,
+  tableNumber: number,
+  itemId: string
+): SharedCartItem[] {
+  const all = readJSON<Record<string, SharedCartItem[]>>(
+    STORAGE_KEY_SHARED_CART,
+    {}
+  );
+  const key = `${venueId}_${tableNumber}`;
+  const current = all[key] ?? [];
+  const updated = current.filter((item) => item.id !== itemId);
+
+  all[key] = updated;
+  writeJSON(STORAGE_KEY_SHARED_CART, all);
+  broadcastUpdate({ eventType: "SHARED_CART_UPDATED", payload: { tableNumber } });
+  return updated;
+}
+
+/* ==================== LIVE ORDER STATUS (CANLI SİPARİŞ DURUMU) ==================== */
+
+export function getLiveOrder(
+  venueId: string,
+  tableNumber: number
+): LiveOrderStatus | null {
+  const all = readJSON<Record<string, LiveOrderStatus | null>>(
+    STORAGE_KEY_LIVE_ORDER,
+    {}
+  );
+  return all[`${venueId}_${tableNumber}`] ?? null;
+}
+
+export function submitSharedOrder(
+  venueId: string,
+  tableNumber: number
+): LiveOrderStatus | null {
+  const cart = getSharedCart(venueId, tableNumber);
+  if (cart.length === 0) return null;
+
+  const totalAmount = cart.reduce(
+    (sum, item) => sum + item.product.price * item.qty,
+    0
+  );
+  const maxPrep = Math.max(
+    6,
+    ...cart.map((item) => parseInt(item.product.prep_time, 10) || 6)
+  );
+
+  const liveOrder: LiveOrderStatus = {
+    id: `live-${Date.now()}`,
+    venue_id: venueId,
+    table_number: tableNumber,
+    status: "preparing",
+    estimated_minutes: maxPrep,
+    items: cart,
+    total_amount: totalAmount,
+    created_at: new Date().toISOString(),
+  };
+
+  // Save live order
+  const allOrders = readJSON<Record<string, LiveOrderStatus | null>>(
+    STORAGE_KEY_LIVE_ORDER,
+    {}
+  );
+  allOrders[`${venueId}_${tableNumber}`] = liveOrder;
+  writeJSON(STORAGE_KEY_LIVE_ORDER, allOrders);
+
+  // Clear shared cart after order is sent to kitchen
+  const allCarts = readJSON<Record<string, SharedCartItem[]>>(
+    STORAGE_KEY_SHARED_CART,
+    {}
+  );
+  allCarts[`${venueId}_${tableNumber}`] = [];
+  writeJSON(STORAGE_KEY_SHARED_CART, allCarts);
+
+  broadcastUpdate({ eventType: "SHARED_CART_UPDATED", payload: { tableNumber } });
+  broadcastUpdate({ eventType: "LIVE_ORDER_UPDATED", payload: { tableNumber } });
+  return liveOrder;
+}
+
+export function updateLiveOrderStage(
+  venueId: string,
+  tableNumber: number,
+  status: LiveOrderStage,
+  estimatedMinutes: number
+): LiveOrderStatus | null {
+  const allOrders = readJSON<Record<string, LiveOrderStatus | null>>(
+    STORAGE_KEY_LIVE_ORDER,
+    {}
+  );
+  const key = `${venueId}_${tableNumber}`;
+  const current = allOrders[key];
+  if (!current) return null;
+
+  const updated: LiveOrderStatus = {
+    ...current,
+    status,
+    estimated_minutes: estimatedMinutes,
+  };
+  allOrders[key] = updated;
+  writeJSON(STORAGE_KEY_LIVE_ORDER, allOrders);
+  broadcastUpdate({ eventType: "LIVE_ORDER_UPDATED", payload: { tableNumber } });
+  return updated;
+}
+
+export function clearLiveOrder(venueId: string, tableNumber: number): void {
+  const allOrders = readJSON<Record<string, LiveOrderStatus | null>>(
+    STORAGE_KEY_LIVE_ORDER,
+    {}
+  );
+  allOrders[`${venueId}_${tableNumber}`] = null;
+  writeJSON(STORAGE_KEY_LIVE_ORDER, allOrders);
+  broadcastUpdate({ eventType: "LIVE_ORDER_UPDATED", payload: { tableNumber } });
 }
