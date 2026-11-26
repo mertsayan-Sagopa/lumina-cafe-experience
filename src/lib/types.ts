@@ -20,6 +20,7 @@ export interface Category {
   name: string;
   subtitle: string;
   sort_order: number;
+  group?: "icecek" | "yiyecek" | "tatli" | "paketli";
 }
 
 export interface CoPurchaseStat {
@@ -56,6 +57,8 @@ export interface Product {
   popularity_score?: number;
   co_purchase_stats?: CoPurchaseStat[];
   options?: ProductOption;
+  subcategory?: string;
+  model_3d_url?: string;
 }
 
 export interface SharedCartItem {

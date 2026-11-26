@@ -6,10 +6,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertCircle,
   ArrowLeft,
+  Box,
   Check,
   ChevronDown,
   ChevronRight,
   Clock,
+  LayoutGrid,
+  List,
   MessageSquarePlus,
   Plus,
   ShoppingBag,
@@ -55,6 +58,8 @@ export default function AnimatedMenu({
   tableSlug,
 }: AnimatedMenuProps) {
   const [activeTab, setActiveTab] = useState<string>(TAB_RECOMMENDED);
+  // Compact layout mode: "list" (5-6 items/screen) or "grid" (2-column compact grid)
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quickOptionProductId, setQuickOptionProductId] = useState<
     string | null
@@ -121,7 +126,7 @@ export default function AnimatedMenu({
     syncAll();
     setQuickOptionProductId(null);
     const label = option
-      ? `${product.name} (${option}) sepete eklendi`
+      ? `${product.name} (${option}) eklendi`
       : `${product.name} sepete eklendi`;
     setAddedToast(label);
     window.setTimeout(() => {
@@ -129,10 +134,7 @@ export default function AnimatedMenu({
     }, 2000);
   };
 
-  const handleQuickAddClick = (
-    e: React.MouseEvent,
-    product: Product
-  ) => {
+  const handleQuickAddClick = (e: React.MouseEvent, product: Product) => {
     e.stopPropagation();
     if (product.options && product.options.choices.length > 0) {
       setQuickOptionProductId((prev) =>
@@ -164,9 +166,9 @@ export default function AnimatedMenu({
 
   return (
     <div className="relative mx-auto min-h-screen w-full max-w-md bg-[var(--bg-base)] pb-28 transition-colors duration-300">
-      {/* Sticky Top Header: Centered Logo + Prominent Masa 12 Badge */}
+      {/* Sticky Top Header */}
       <div className="sticky top-0 z-30 border-b border-[var(--border-subtle)] bg-[var(--bg-glass)] backdrop-blur-xl">
-        <div className="grid grid-cols-3 items-center px-4 py-3.5">
+        <div className="grid grid-cols-3 items-center px-4 py-3">
           <div className="flex items-center gap-2">
             <Link
               href={`/${venue.slug}/${tableSlug}`}
@@ -213,7 +215,7 @@ export default function AnimatedMenu({
         </div>
 
         {/* Sticky Horizontal Category Tabs */}
-        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-3 pt-1">
+        <div className="no-scrollbar flex gap-1.5 overflow-x-auto px-4 pb-2.5 pt-0.5">
           {tabs.map((tab) => {
             const isActive = tab.id === activeTab;
             return (
@@ -221,7 +223,7 @@ export default function AnimatedMenu({
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition-colors ${
+                className={`relative flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
                   isActive
                     ? "text-[var(--text-inverse)]"
                     : "border border-[var(--border-subtle)] bg-[var(--bg-card)] text-[var(--text-secondary)]"
@@ -249,119 +251,133 @@ export default function AnimatedMenu({
 
       {/* Live Order Status Banner */}
       {liveOrder && (
-        <div className="px-4 pt-4">
+        <div className="px-4 pt-3">
           <LiveOrderBanner order={liveOrder} />
         </div>
       )}
 
       {/* Main Content Area */}
       {activeTab === TAB_WISHES ? (
-        <div className="px-4 pt-5">
+        <div className="px-4 pt-4">
           <CustomerRequestTab venueId={venue.id} tableNumber={tableNumber} />
         </div>
       ) : (
         <>
-          {/* Section Header */}
-          <div className="px-4 pb-2 pt-5">
-            <div className="flex items-end justify-between">
-              <div>
-                <h2 className="font-serif-display text-2xl font-semibold tracking-tight text-[var(--text-primary)]">
+          {/* Section Header + Compact View Mode Toggle (Yatay Satır / 2'li Izgara) */}
+          <div className="px-4 pb-2 pt-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h2 className="font-serif-display truncate text-xl font-semibold tracking-tight text-[var(--text-primary)]">
                   {activeTab === TAB_RECOMMENDED
                     ? "Önerilenler"
                     : activeCategoryMeta?.name}
                 </h2>
-                <p className="text-xs text-[var(--text-secondary)]">
+                <p className="truncate text-[11px] text-[var(--text-secondary)]">
                   {activeTab === TAB_RECOMMENDED
-                    ? "Şefin ve baristanın en iddialı imza lezzetleri"
+                    ? "İmza lezzetler · 3D görselli menü"
                     : activeCategoryMeta?.subtitle}
                 </p>
               </div>
-              <span className="text-[11px] font-medium text-[var(--text-muted)]">
-                {filteredProducts.length} lezzet
-              </span>
+
+              {/* Layout Toggle */}
+              <div className="flex shrink-0 items-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-0.5 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  aria-label="Kompakt Yatay Liste"
+                  className={`flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-semibold transition-colors ${
+                    viewMode === "list"
+                      ? "bg-[var(--brand-primary)] text-[var(--text-inverse)]"
+                      : "text-[var(--text-secondary)]"
+                  }`}
+                >
+                  <List className="h-3.5 w-3.5" />
+                  <span>Liste</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grid")}
+                  aria-label="2'li Kompakt Izgara"
+                  className={`flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-semibold transition-colors ${
+                    viewMode === "grid"
+                      ? "bg-[var(--brand-primary)] text-[var(--text-inverse)]"
+                      : "text-[var(--text-secondary)]"
+                  }`}
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                  <span>2&apos;li</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* 3D Product Cards */}
-          <div className="space-y-4 px-4 pt-3">
-            {filteredProducts.map((product, index) => {
-              const isOptionOpen = quickOptionProductId === product.id;
+          {/* COMPACT HORIZONTAL ROW LAYOUT (5-6 products visible on 1 screen) */}
+          {viewMode === "list" ? (
+            <div className="space-y-2.5 px-4 pt-2">
+              {filteredProducts.map((product) => {
+                const isOptionOpen = quickOptionProductId === product.id;
 
-              return (
-                <motion.article
-                  key={product.id}
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.32, delay: index * 0.05 }}
-                  onClick={() => openProductDetail(product)}
-                  className="group cursor-pointer overflow-hidden rounded-[26px] border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-[var(--shadow-card)] transition-colors hover:border-[var(--brand-accent)]"
-                >
-                  {/* 3D Studio Visual Container */}
-                  <div className="relative h-52 w-full overflow-hidden bg-[var(--bg-elevated)]">
-                    <img
-                      src={product.media_url}
-                      alt={product.name}
-                      loading="lazy"
-                      className={`${getMotionClass(
-                        product.motion_style
-                      )} h-full w-full object-cover`}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/15" />
-
-                    {/* Top Badges — Prep Time Preserved Top-Right */}
-                    <div className="absolute left-3 right-3 top-3 flex items-center justify-between">
-                      {product.badge ? (
-                        <span className="rounded-full border border-white/25 bg-[#2c1e16]/75 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-[#f7f3ec] backdrop-blur-md">
-                          {product.badge}
+                return (
+                  <motion.article
+                    key={product.id}
+                    layout
+                    onClick={() => openProductDetail(product)}
+                    className="cursor-pointer overflow-hidden rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-2.5 shadow-sm transition-colors hover:border-[var(--brand-accent)]"
+                  >
+                    <div className="flex items-center gap-3">
+                      {/* Compact Square 3D Visual */}
+                      <div className="relative h-[74px] w-[74px] shrink-0 overflow-hidden rounded-2xl bg-[var(--bg-elevated)]">
+                        <img
+                          src={product.media_url}
+                          alt={product.name}
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                        <span className="absolute bottom-1 right-1 inline-flex items-center gap-0.5 rounded-md bg-black/65 px-1.5 py-0.5 text-[9px] font-medium text-white backdrop-blur-sm">
+                          <Clock className="h-2.5 w-2.5 text-[#e5d4b8]" />
+                          {product.prep_time}
                         </span>
-                      ) : (
-                        <span />
-                      )}
-
-                      <span className="inline-flex items-center gap-1 rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur-md">
-                        <Clock className="h-3 w-3 text-[#e5d4b8]" />
-                        {product.prep_time}
-                      </span>
-                    </div>
-
-                    {/* Price Tag — Preserved Bottom-Right */}
-                    <div className="absolute bottom-3 right-3 rounded-2xl border border-white/15 bg-[#2c1e16]/90 px-3.5 py-1.5 text-sm font-semibold text-[#f7f3ec] shadow-md backdrop-blur-md">
-                      {product.price} ₺
-                    </div>
-                  </div>
-
-                  {/* Detailed Card Body */}
-                  <div className="p-4">
-                    <div>
-                      <h3 className="font-serif-display text-lg font-semibold text-[var(--text-primary)]">
-                        {product.name}
-                      </h3>
-                      {product.portion && (
-                        <p className="mt-0.5 text-[11px] font-medium text-[var(--brand-accent)]">
-                          {product.portion}
-                        </p>
-                      )}
-                    </div>
-
-                    <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-[var(--text-secondary)]">
-                      {product.description}
-                    </p>
-
-                    {/* Tasting Notes */}
-                    {product.tasting_notes && product.tasting_notes.length > 0 && (
-                      <div className="mt-2.5 flex flex-wrap gap-1.5">
-                        {product.tasting_notes.map((note) => (
-                          <span
-                            key={note}
-                            className="rounded-full bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]"
-                          >
-                            {note}
-                          </span>
-                        ))}
                       </div>
-                    )}
 
-                    {/* Inline Quick Option Selector (No page switch needed!) */}
+                      {/* Middle Info */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          {product.subcategory && (
+                            <span className="truncate text-[9px] font-semibold uppercase tracking-wider text-[var(--brand-accent)]">
+                              {product.subcategory}
+                            </span>
+                          )}
+                          {product.badge && (
+                            <span className="shrink-0 rounded-full bg-[var(--brand-soft)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--brand-accent)]">
+                              {product.badge}
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="font-serif-display truncate text-sm font-semibold text-[var(--text-primary)]">
+                          {product.name}
+                        </h3>
+                        <p className="mt-0.5 line-clamp-1 text-[11px] text-[var(--text-secondary)]">
+                          {product.description}
+                        </p>
+                      </div>
+
+                      {/* Right Price & Quick +Ekle */}
+                      <div className="flex shrink-0 flex-col items-end justify-between gap-2 self-stretch">
+                        <span className="text-sm font-bold text-[var(--text-primary)]">
+                          {product.price} ₺
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => handleQuickAddClick(e, product)}
+                          className="inline-flex items-center gap-0.5 rounded-full bg-[var(--brand-primary)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--text-inverse)] shadow-sm active:scale-95"
+                        >
+                          <Plus className="h-3 w-3" />
+                          <span>Ekle</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Inline Quick Option Selector */}
                     <AnimatePresence>
                       {isOptionOpen && product.options && (
                         <motion.div
@@ -369,10 +385,10 @@ export default function AnimatedMenu({
                           animate={{ opacity: 1, height: "auto" }}
                           exit={{ opacity: 0, height: 0 }}
                           onClick={(e) => e.stopPropagation()}
-                          className="mt-3 overflow-hidden rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-3"
+                          className="mt-2.5 overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-2.5"
                         >
-                          <p className="mb-2 text-[11px] font-semibold text-[var(--text-primary)]">
-                            {product.options.label} seçin:
+                          <p className="mb-1.5 text-[10px] font-semibold text-[var(--text-primary)]">
+                            {product.options.label}:
                           </p>
                           <div className="flex flex-wrap gap-1.5">
                             {product.options.choices.map((choice) => (
@@ -380,7 +396,7 @@ export default function AnimatedMenu({
                                 key={choice}
                                 type="button"
                                 onClick={() => handleAddToCart(product, choice)}
-                                className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-1.5 text-[11px] font-medium text-[var(--text-primary)] hover:border-[var(--brand-accent)] active:scale-95"
+                                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-2.5 py-1 text-[10px] font-medium text-[var(--text-primary)] hover:border-[var(--brand-accent)] active:scale-95"
                               >
                                 {choice}
                               </button>
@@ -389,44 +405,107 @@ export default function AnimatedMenu({
                         </motion.div>
                       )}
                     </AnimatePresence>
+                  </motion.article>
+                );
+              })}
+            </div>
+          ) : (
+            /* 2-COLUMN COMPACT GRID LAYOUT */
+            <div className="grid grid-cols-2 gap-3 px-4 pt-2">
+              {filteredProducts.map((product) => {
+                const isOptionOpen = quickOptionProductId === product.id;
 
-                    {/* Bottom Row: Allergens + Prominent Bottom-Right "+ Ekle" Button */}
-                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--border-subtle)] pt-3">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {product.allergens.length > 0 ? (
-                          product.allergens.map((a) => (
-                            <span
-                              key={a}
-                              className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-card-soft)] px-2 py-0.5 text-[10px] text-[var(--text-muted)]"
-                            >
-                              {ALLERGEN_LABELS[a].short}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="rounded-md border border-emerald-600/20 bg-emerald-600/10 px-2 py-0.5 text-[10px] text-emerald-700">
-                            Alerjen İçermez
-                          </span>
+                return (
+                  <motion.article
+                    key={product.id}
+                    layout
+                    onClick={() => openProductDetail(product)}
+                    className={`flex cursor-pointer flex-col overflow-hidden rounded-[22px] border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-sm transition-colors hover:border-[var(--brand-accent)] ${
+                      isOptionOpen ? "col-span-2" : ""
+                    }`}
+                  >
+                    <div className="relative h-28 w-full overflow-hidden bg-[var(--bg-elevated)]">
+                      <img
+                        src={product.media_url}
+                        alt={product.name}
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
+                      <span className="absolute right-2 top-2 inline-flex items-center gap-0.5 rounded-full bg-black/55 px-2 py-0.5 text-[9px] font-medium text-white backdrop-blur-md">
+                        <Clock className="h-2.5 w-2.5 text-[#e5d4b8]" />
+                        {product.prep_time}
+                      </span>
+                      <span className="absolute bottom-2 right-2 rounded-xl bg-[#2c1e16]/90 px-2 py-0.5 text-xs font-semibold text-[#f7f3ec] backdrop-blur-md">
+                        {product.price} ₺
+                      </span>
+                    </div>
+
+                    <div className="flex flex-1 flex-col justify-between p-2.5">
+                      <div>
+                        {product.subcategory && (
+                          <p className="truncate text-[9px] font-semibold uppercase tracking-wider text-[var(--brand-accent)]">
+                            {product.subcategory}
+                          </p>
                         )}
+                        <h3 className="font-serif-display line-clamp-1 text-xs font-semibold text-[var(--text-primary)]">
+                          {product.name}
+                        </h3>
+                        <p className="mt-0.5 line-clamp-1 text-[10px] text-[var(--text-secondary)]">
+                          {product.description}
+                        </p>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={(e) => handleQuickAddClick(e, product)}
-                        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--brand-primary)] px-3.5 py-2 text-xs font-semibold text-[var(--text-inverse)] shadow-sm transition-transform active:scale-95"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        <span>Ekle</span>
-                      </button>
+                      {/* Inline Options for Grid */}
+                      <AnimatePresence>
+                        {isOptionOpen && product.options && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-2 overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-2"
+                          >
+                            <p className="mb-1.5 text-[10px] font-semibold text-[var(--text-primary)]">
+                              {product.options.label}:
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {product.options.choices.map((choice) => (
+                                <button
+                                  key={choice}
+                                  type="button"
+                                  onClick={() =>
+                                    handleAddToCart(product, choice)
+                                  }
+                                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-2 py-1 text-[10px] font-medium text-[var(--text-primary)] active:scale-95"
+                                >
+                                  {choice}
+                                </button>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      <div className="mt-2.5 flex items-center justify-end">
+                        <button
+                          type="button"
+                          onClick={(e) => handleQuickAddClick(e, product)}
+                          className="inline-flex items-center gap-0.5 rounded-full bg-[var(--brand-primary)] px-2.5 py-1 text-[10px] font-semibold text-[var(--text-inverse)] shadow-sm active:scale-95"
+                        >
+                          <Plus className="h-3 w-3" />
+                          <span>Ekle</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </motion.article>
-              );
-            })}
-          </div>
+                  </motion.article>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
 
-      {/* Clickable Floating Shared Cart Summary Bar (Opens SharedCartSheet — NO Clear All button!) */}
+      {/* Clickable Floating Shared Cart Summary Bar */}
       <AnimatePresence>
         {totalSelectedCount > 0 && (
           <motion.div
@@ -462,7 +541,7 @@ export default function AnimatedMenu({
         )}
       </AnimatePresence>
 
-      {/* Product Detail Bottom Sheet (Calories Removed!) */}
+      {/* Product Detail Bottom Sheet (No Calories, 3D Ready) */}
       <AnimatePresence>
         {selectedProduct && (
           <>
@@ -482,7 +561,7 @@ export default function AnimatedMenu({
               className="fixed bottom-0 left-1/2 z-50 max-h-[90vh] w-full max-w-md -translate-x-1/2 overflow-y-auto rounded-t-[32px] border-t border-[var(--border-strong)] bg-[var(--bg-card)] pb-7 shadow-2xl"
             >
               {/* 3D Hero Image */}
-              <div className="relative h-64 w-full overflow-hidden bg-[var(--bg-elevated)]">
+              <div className="relative h-60 w-full overflow-hidden bg-[var(--bg-elevated)]">
                 <img
                   src={selectedProduct.media_url}
                   alt={selectedProduct.name}
@@ -491,6 +570,11 @@ export default function AnimatedMenu({
                   )} h-full w-full object-cover`}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/25" />
+
+                <span className="absolute left-4 top-4 inline-flex items-center gap-1 rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-semibold text-[#f7f3ec] backdrop-blur-md">
+                  <Box className="h-3 w-3 text-[#e5d4b8]" />
+                  3D Görsel
+                </span>
 
                 <button
                   type="button"
