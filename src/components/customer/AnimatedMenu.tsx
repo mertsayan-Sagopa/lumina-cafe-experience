@@ -38,6 +38,7 @@ import { LiveOrderStatus, Product, SharedCartItem, Venue } from "@/lib/types";
 import CustomerRequestTab from "./CustomerRequestTab";
 import FlavorWheelModal from "./FlavorWheelModal";
 import LiveOrderBanner from "./LiveOrderBanner";
+import Product3DViewer from "./Product3DViewer";
 import RollingPrice from "./RollingPrice";
 import SharedCartSheet from "./SharedCartSheet";
 import TableActionsMenu from "./TableActionsMenu";
@@ -61,6 +62,7 @@ export default function AnimatedMenu({
   // Compact layout mode: "list" (5-6 items/screen) or "grid" (2-column compact grid)
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [detailViewMode, setDetailViewMode] = useState<"3d" | "photo">("3d");
   const [quickOptionProductId, setQuickOptionProductId] = useState<
     string | null
   >(null);
@@ -147,6 +149,7 @@ export default function AnimatedMenu({
 
   const openProductDetail = (product: Product) => {
     setSelectedProduct(product);
+    setDetailViewMode("3d");
     setDetailOption(product.options?.choices[0]);
   };
 
@@ -560,26 +563,54 @@ export default function AnimatedMenu({
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
               className="fixed bottom-0 left-1/2 z-50 max-h-[90vh] w-full max-w-md -translate-x-1/2 overflow-y-auto rounded-t-[32px] border-t border-[var(--border-strong)] bg-[var(--bg-card)] pb-7 shadow-2xl"
             >
-              {/* 3D Hero Image */}
+              {/* Real Interactive 360° 3D WebGL Viewer or Photo Toggle */}
               <div className="relative h-60 w-full overflow-hidden bg-[var(--bg-elevated)]">
-                <img
-                  src={selectedProduct.media_url}
-                  alt={selectedProduct.name}
-                  className={`${getMotionClass(
-                    selectedProduct.motion_style
-                  )} h-full w-full object-cover`}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/25" />
+                {detailViewMode === "3d" ? (
+                  <Product3DViewer product={selectedProduct} />
+                ) : (
+                  <>
+                    <img
+                      src={selectedProduct.media_url}
+                      alt={selectedProduct.name}
+                      className={`${getMotionClass(
+                        selectedProduct.motion_style
+                      )} h-full w-full object-cover`}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/25" />
+                  </>
+                )}
 
-                <span className="absolute left-4 top-4 inline-flex items-center gap-1 rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-semibold text-[#f7f3ec] backdrop-blur-md">
-                  <Box className="h-3 w-3 text-[#e5d4b8]" />
-                  3D Görsel
-                </span>
+                {/* 360° 3D / Görsel Switcher */}
+                <div className="absolute left-4 top-4 z-10 flex items-center rounded-full border border-[var(--border-strong)] bg-[var(--bg-card)]/90 p-0.5 shadow-md backdrop-blur-md">
+                  <button
+                    type="button"
+                    onClick={() => setDetailViewMode("3d")}
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors ${
+                      detailViewMode === "3d"
+                        ? "bg-[var(--brand-primary)] text-[var(--text-inverse)]"
+                        : "text-[var(--text-secondary)]"
+                    }`}
+                  >
+                    <Box className="h-3 w-3" />
+                    360° 3D
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDetailViewMode("photo")}
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors ${
+                      detailViewMode === "photo"
+                        ? "bg-[var(--brand-primary)] text-[var(--text-inverse)]"
+                        : "text-[var(--text-secondary)]"
+                    }`}
+                  >
+                    Görsel
+                  </button>
+                </div>
 
                 <button
                   type="button"
                   onClick={() => setSelectedProduct(null)}
-                  className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-md active:scale-95"
+                  className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-md active:scale-95"
                   aria-label="Kapat"
                 >
                   <X className="h-4 w-4" />
